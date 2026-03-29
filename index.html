@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Music Player - Live</title>
+    <style>
+        body { 
+            background-color: #0f0f13; color: #ffffff; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 20px 0; min-height: 100vh;
+        }
+        .player-container { 
+            background: #1a1a24; padding: 25px; border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0, 191, 255, 0.15); 
+            width: 90%; max-width: 350px; text-align: center; 
+            border: 1px solid #2d2d3d; margin-bottom: 20px;
+        }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .search-box input {
+            flex: 1; padding: 10px; border-radius: 10px; border: none;
+            background: #2d2d3d; color: white; outline: none;
+        }
+        .search-box button {
+            padding: 10px 15px; border-radius: 10px; border: none;
+            background: #00bfff; color: white; font-weight: bold; cursor: pointer;
+        }
+        .album-art { 
+            width: 100%; height: 250px; background: #252535; 
+            border-radius: 15px; margin-bottom: 15px; object-fit: cover;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .song-title { font-size: 1.2em; font-weight: bold; color: #00bfff; margin-bottom: 5px; }
+        .artist-name { font-size: 0.9em; color: #8888a0; margin-bottom: 15px; }
+        
+        .progress-container { display: flex; align-items: center; gap: 10px; font-size: 0.8em; color: #8888a0; margin-bottom: 15px; }
+        input[type="range"] { 
+            flex: 1; accent-color: #00bfff; height: 4px; background: #333; 
+            border-radius: 5px; outline: none; cursor: pointer;
+        }
+        
+        .controls { display: flex; justify-content: center; align-items: center; gap: 25px; }
+        .controls button { 
+            background: none; border: none; color: #00bfff; 
+            font-size: 25px; cursor: pointer; transition: 0.2s;
+        }
+        #playBtn { font-size: 45px; }
+        .controls button:active { transform: scale(0.9); color: white; }
+
+        .results-container { width: 90%; max-width: 350px; text-align: left; }
+        .result-item {
+            background: #1a1a24; padding: 10px; border-radius: 10px; 
+            margin-bottom: 10px; display: flex; align-items: center; gap: 15px;
+            cursor: pointer; border: 1px solid #2d2d3d; transition: 0.2s;
+        }
+        .result-item:hover { background: #252535; border-color: #00bfff; }
+        .result-thumb { width: 50px; height: 50px; border-radius: 5px; object-fit: cover; }
+        .result-info { display: flex; flex-direction: column; overflow: hidden; }
+        .result-title { font-size: 0.9em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;}
+        .result-artist { font-size: 0.75em; color: #8888a0; }
+    </style>
+</head>
+<body>
+
+    <div class="player-container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search a movie or song...">
+            <button onclick="searchAlbum()">Search</button>
+        </div>
+
+        <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
+        
+        <div class="song-title" id="title">Global Player</div>
+        <div class="artist-name" id="artist">Live App Setup Complete!</div>
+        
+        <audio id="audio"></audio>
+
+        <div class="progress-container">
+            <span id="currentTime">0:00</span>
+            <input type="range" id="progressBar" value="0" max="100">
+            <span id="totalTime">0:00</span>
+        </div>
+
+        <div class="controls">
+            <button onclick="toggleLoop()" id="loopBtn" style="color: gray;">🔁</button>
+            <button onclick="togglePlay()" id="playBtn">▶️</button>
+            <button onclick="downloadSong()" id="downBtn">⬇️</button>
+        </div>
+        <p id="statusMessage" style="color: #00bfff; font-size: 0.8em; margin-top: 10px;"></p>
+    </div>
+
+    <div class="results-container" id="resultsList"></div>
+
+    <script>
+        const audio = document.getElementById('audio');
+        const playBtn = document.getElementById('playBtn');
+        const loopBtn = document.getElementById('loopBtn');
+        const title = document.getElementById('title');
+        const artist = document.getElementById('artist');
+        const cover = document.getElementById('cover');
+        const statusMsg = document.getElementById('statusMessage');
+        const resultsList = document.getElementById('resultsList');
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeEl = document.getElementById('currentTime');
+        const totalTimeEl = document.getElementById('totalTime');
+
+        const API_BASE = "https://pipedapi.kavin.rocks"; 
+
+        async function searchAlbum() {
+            const query = document.getElementById('searchInput').value;
+            if(!query) return;
+
+            statusMsg.innerText = "Searching... ⚡";
+            resultsList.innerHTML = ""; 
+            
+            try {
+                // Direct call! Since it's on a real website now, no proxy needed.
+                const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&filter=all`);
+                const data = await response.json();
+
+                const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
+
+                if (streams.length > 0) {
+                    statusMsg.innerText = "Select a song to play!";
+                    streams.forEach(song => {
+                        const vid = song.url.split('?v=')[1]; 
+                        const item = document.createElement('div');
+                        item.className = 'result-item';
+                        item.onclick = () => loadAndPlaySong(vid, song.title, song.uploaderName, song.thumbnail);
+                        
+                        item.innerHTML = `
+                            <img src="${song.thumbnail || 'https://via.placeholder.com/50'}" class="result-thumb">
+                            <div class="result-info">
+                                <span class="result-title">${song.title}</span>
+                                <span class="result-artist">${song.uploaderName}</span>
+                            </div>
+                        `;
+                        resultsList.appendChild(item);
+                    });
+                } else {
+                    statusMsg.innerText = "No results found.";
+                    statusMsg.style.color = "#ff4d4d";
+                }
+            } catch (error) {
+                console.error("Search Error:", error);
+                statusMsg.innerText = "Network Error: Try again!";
+                statusMsg.style.color = "#ff4d4d";
+            }
+        }
+
+        async function loadAndPlaySong(id, songTitle, songArtist, songThumb) {
+            title.innerText = songTitle;
+            artist.innerText = songArtist;
+            cover.src = songThumb || cover.src;
+            statusMsg.innerText = "Extracting raw audio... 🎧";
+            
+            try {
+                const response = await fetch(`${API_BASE}/streams/${id}`);
+                const data = await response.json();
+
+                if (data.audioStreams && data.audioStreams.length > 0) {
+                    const bestAudio = data.audioStreams.find(a => a.format === 'M4A') || data.audioStreams[0];
+                    audio.src = bestAudio.url; 
+                    statusMsg.innerText = "Playing...";
+                    
+                    if ('mediaSession' in navigator) {
+                        navigator.mediaSession.metadata = new MediaMetadata({
+                            title: songTitle,
+                            artist: songArtist,
+                            artwork: [
+                                { src: songThumb, sizes: '512x512', type: 'image/jpeg' }
+                            ]
+                        });
+                        navigator.mediaSession.setActionHandler('play', () => { audio.play(); playBtn.innerText = "⏸"; });
+                        navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); playBtn.innerText = "▶️"; });
+                    }
+
+                    audio.play().then(() => {
+                        playBtn.innerText = "⏸";
+                    }).catch(() => {
+                        statusMsg.innerText = "Ready! Tap Play (▶️).";
+                        playBtn.innerText = "▶️";
+                    });
+                } else {
+                    statusMsg.innerText = "Failed to load audio stream.";
+                }
+            } catch (error) {
+                console.error("Play Error:", error);
+                statusMsg.innerText = "Error extracting audio. Try another song.";
+            }
+        }
+
+        function togglePlay() {
+            if (!audio.src) return; 
+            if (audio.paused) { audio.play(); playBtn.innerText = "⏸"; } 
+            else { audio.pause(); playBtn.innerText = "▶️"; }
+        }
+
+        function toggleLoop() {
+            audio.loop = !audio.loop;
+            loopBtn.style.color = audio.loop ? "#00ff00" : "gray";
+            statusMsg.innerText = audio.loop ? "Loop Enabled" : "Loop Disabled";
+        }
+
+        function downloadSong() {
+            if (!audio.src) {
+                statusMsg.innerText = "Play a song first to download!";
+                return;
+            }
+            statusMsg.innerText = "Opening download link...";
+            window.open(audio.src, '_blank');
+        }
+
+        function formatTime(seconds) {
+            const min = Math.floor(seconds / 60);
+            const sec = Math.floor(seconds % 60);
+            return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+        }
+
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                const progressPercent = (audio.currentTime / audio.duration) * 100;
+                progressBar.value = progressPercent;
+                currentTimeEl.innerText = formatTime(audio.currentTime);
+                totalTimeEl.innerText = formatTime(audio.duration);
+            }
+        });
+
+        progressBar.addEventListener('input', () => {
+            if (audio.duration) {
+                const seekTime = (progressBar.value / 100) * audio.duration;
+                audio.currentTime = seekTime;
+            }
+        });
+
+        audio.addEventListener('ended', () => {
+            if (!audio.loop) {
+                playBtn.innerText = "▶️";
+                statusMsg.innerText = "Song ended.";
+            }
+        });
+    </script>
+</body>
+</html>
