@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CNMP - Ultimate Engine</title>
+    <title>CNMP - Nuclear Masked Edition</title>
     <style>
         body { 
             background-color: #0f0f13; color: #ffffff; 
@@ -81,14 +81,14 @@
         </div>
 
         <div class="tabs">
-            <div class="tab active" id="tab-saavn" onclick="switchTab('saavn')">🎵 Saavn</div>
-            <div class="tab" id="tab-yt" onclick="switchTab('yt')">🎥 YouTube Bypass</div>
+            <div class="tab active" id="tab-saavn" onclick="switchTab('saavn')">🎵 Saavn HQ</div>
+            <div class="tab" id="tab-yt" onclick="switchTab('yt')">🎥 YT Masked</div>
         </div>
 
         <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
         
-        <div class="song-title" id="title">CNMP Engine</div>
-        <div class="artist-name" id="artist">Ready for Action 🚀</div>
+        <div class="song-title" id="title">Anti-Block Engine</div>
+        <div class="artist-name" id="artist">Masking your IP... 🕵️‍♂️</div>
         
         <audio id="audio"></audio>
 
@@ -128,16 +128,23 @@
             });
         }
 
-        // NEW: Invidious API Servers (YouTube Block Bypass)
-        const INV_SERVERS = [
-            "https://inv.tux.pizza",
-            "https://invidious.nerdvpn.de",
-            "https://invidious.privacydev.net"
+        // Domain Masking (App-Level VPN)
+        const PROXIES = [
+            "https://api.allorigins.win/raw?url=", // Best Mask
+            "https://corsproxy.io/?",              // Backup Mask
+            ""                                     // Direct (If VPN is on)
         ];
-        let currentInvServer = INV_SERVERS[0];
 
-        // Increased Saavn limit to 40 songs!
-        const SAAVN_API = "https://saavn.dev/api/search/songs?limit=40&query=";
+        const SAAVN_APIS = [
+            "https://saavn.dev/api/search/songs?limit=30&query=",
+            "https://jiosaavn-api-v3.vercel.app/search/songs?query="
+        ];
+
+        const YT_APIS = [
+            "https://inv.tux.pizza/api/v1/search?type=video&q=",
+            "https://invidious.nerdvpn.de/api/v1/search?type=video&q="
+        ];
+        let currentYtServer = YT_APIS[0].split('/api')[0]; // Save base url for later
 
         function decodeHTML(html) {
             const txt = document.createElement("textarea");
@@ -149,103 +156,128 @@
             const query = document.getElementById('searchInput').value;
             if(!query) return;
 
-            statusMsg.innerText = "Searching... 🚀";
+            statusMsg.innerText = "Applying VPN Mask & Searching... 🕵️‍♂️";
             fetchSaavn(query);
-            fetchInvidious(query);
+            fetchYouTube(query);
         }
 
-        // Engine 1: Saavn (Now gets 40 results)
         async function fetchSaavn(query) {
             const container = document.getElementById('list-saavn');
-            container.innerHTML = "<p style='text-align:center;'>Fetching 40 HQ Songs...</p>";
+            container.innerHTML = "<p style='text-align:center;'>Bypassing ISP for Saavn...</p>";
             
-            try {
-                const response = await fetch(SAAVN_API + encodeURIComponent(query));
-                const json = await response.json();
-                
-                let songs = json.data.results || [];
+            let success = false;
 
-                if (songs.length > 0) {
-                    container.innerHTML = "";
-                    songs.forEach(song => {
-                        let songTitle = decodeHTML(song.name || song.title || "Unknown");
-                        let songArtist = decodeHTML(song.primaryArtists || song.singers || "Unknown");
-                        let songThumb = "https://via.placeholder.com/50";
-                        if (song.image && song.image.length > 0) songThumb = song.image[song.image.length - 1].link || song.image[song.image.length - 1].url;
+            // Try Every Proxy with Every Saavn API (Nuclear loop)
+            for (let proxy of PROXIES) {
+                for (let api of SAAVN_APIS) {
+                    try {
+                        let targetUrl = api + encodeURIComponent(query);
+                        let finalUrl = proxy ? proxy + encodeURIComponent(targetUrl) : targetUrl;
                         
-                        let audioUrl = "";
-                        let downloadArr = song.downloadUrl || song.media_url;
-                        if (downloadArr && downloadArr.length > 0) audioUrl = downloadArr[downloadArr.length - 1].link || downloadArr[downloadArr.length - 1].url;
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 6000); 
+                        
+                        const response = await fetch(finalUrl, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        
+                        if (!response.ok) continue;
+                        
+                        const json = await response.json();
+                        let songs = json.data?.results || json.data || json.results || [];
 
-                        if (!audioUrl) return;
+                        if (songs.length > 0) {
+                            container.innerHTML = "";
+                            songs.forEach(song => {
+                                let songTitle = decodeHTML(song.name || song.title || "Unknown");
+                                let songArtist = decodeHTML(song.primaryArtists || song.singers || "Unknown");
+                                let songThumb = "https://via.placeholder.com/50";
+                                if (song.image) songThumb = Array.isArray(song.image) ? song.image[song.image.length - 1].link || song.image[song.image.length - 1].url : song.image;
+                                
+                                let audioUrl = "";
+                                let dl = song.downloadUrl || song.media_url;
+                                if (dl) audioUrl = Array.isArray(dl) ? dl[dl.length - 1].link || dl[dl.length - 1].url : dl;
 
-                        const item = document.createElement('div');
-                        item.className = 'result-item';
-                        item.innerHTML = `
-                            <img src="${songThumb}" class="result-thumb" onclick="playSaavn('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
-                            <div class="result-info" onclick="playSaavn('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
-                                <span class="result-title">${songTitle}</span>
-                                <span class="result-artist">${songArtist}</span>
-                                <span class="source-badge" style="color:#00ff88;">🎵 Saavn HQ</span>
-                            </div>
-                            <button class="like-btn" onclick="toggleLike(this, '${songTitle}')">🤍</button>
-                        `;
-                        container.appendChild(item);
-                    });
-                    statusMsg.innerText = "Select a song to play!";
-                } else {
-                    container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>No Saavn results found.</p>";
+                                if (!audioUrl) return;
+
+                                const item = document.createElement('div');
+                                item.className = 'result-item';
+                                item.innerHTML = `
+                                    <img src="${songThumb}" class="result-thumb" onclick="playAudio('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
+                                    <div class="result-info" onclick="playAudio('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
+                                        <span class="result-title">${songTitle}</span>
+                                        <span class="result-artist">${songArtist}</span>
+                                        <span class="source-badge" style="color:#00ff88;">🎵 HQ Masked</span>
+                                    </div>
+                                    <button class="like-btn" onclick="toggleLike(this, '${songTitle}')">🤍</button>
+                                `;
+                                container.appendChild(item);
+                            });
+                            success = true;
+                            statusMsg.innerText = "Mask Successful! Select a song.";
+                            return; // Exit completely if found
+                        }
+                    } catch (err) {
+                        console.log("Mask failed, trying next route...");
+                    }
                 }
-            } catch (err) {
-                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>Saavn Engine Failed.</p>";
+            }
+
+            if (!success) {
+                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>Total ISP Block. Try a real VPN app on your phone.</p>";
             }
         }
 
-        // Engine 2: YouTube via Invidious (Bypass Blocks)
-        async function fetchInvidious(query) {
+        async function fetchYouTube(query) {
             const container = document.getElementById('list-yt');
-            container.innerHTML = `<p style='text-align:center;'>Bypassing YouTube Blocks...</p>`;
+            container.innerHTML = `<p style='text-align:center;'>Bypassing ISP for YT...</p>`;
             
-            const fetchPromises = INV_SERVERS.map(async (server) => {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); 
-                try {
-                    const response = await fetch(`${server}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error("Blocked");
-                    const data = await response.json();
-                    if (data.length === 0) throw new Error("Empty");
-                    return { server, videos: data.slice(0, 15) }; // Getting 15 videos
-                } catch (error) { throw error; }
-            });
+            let success = false;
 
-            try {
-                const fastest = await Promise.any(fetchPromises);
-                currentInvServer = fastest.server; 
-                container.innerHTML = "";
+            for (let proxy of PROXIES) {
+                for (let api of YT_APIS) {
+                    try {
+                        let targetUrl = api + encodeURIComponent(query);
+                        let finalUrl = proxy ? proxy + encodeURIComponent(targetUrl) : targetUrl;
+                        
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 6000); 
+                        
+                        const response = await fetch(finalUrl, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        
+                        if (!response.ok) continue;
+                        const data = await response.json();
+                        if (data.length === 0) continue;
 
-                fastest.videos.forEach(video => {
-                    const thumb = video.videoThumbnails.find(t => t.quality === 'medium')?.url || video.videoThumbnails[0]?.url || "https://via.placeholder.com/50";
-                    
-                    const item = document.createElement('div');
-                    item.className = 'result-item';
-                    item.innerHTML = `
-                        <img src="${thumb}" class="result-thumb" onclick="playInvidious('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
-                        <div class="result-info" onclick="playInvidious('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
-                            <span class="result-title">${video.title}</span>
-                            <span class="result-artist">${video.author}</span>
-                            <span class="source-badge" style="color:#ff4d4d;">🎥 YouTube</span>
-                        </div>
-                        <button class="like-btn" onclick="toggleLike(this, '${video.title}')">🤍</button>
-                    `;
-                    container.appendChild(item);
-                });
-            } catch (err) {
-                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>YouTube is heavily blocked by your Network.</p>`;
+                        currentYtServer = api.split('/api')[0]; // Save the working base URL
+                        container.innerHTML = "";
+
+                        data.slice(0, 15).forEach(video => {
+                            const thumb = video.videoThumbnails?.find(t => t.quality === 'medium')?.url || video.videoThumbnails?.[0]?.url || "https://via.placeholder.com/50";
+                            
+                            const item = document.createElement('div');
+                            item.className = 'result-item';
+                            item.innerHTML = `
+                                <img src="${thumb}" class="result-thumb" onclick="playYT('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
+                                <div class="result-info" onclick="playYT('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
+                                    <span class="result-title">${video.title}</span>
+                                    <span class="result-artist">${video.author}</span>
+                                    <span class="source-badge" style="color:#ff4d4d;">🎥 YT Masked</span>
+                                </div>
+                                <button class="like-btn" onclick="toggleLike(this, '${video.title}')">🤍</button>
+                            `;
+                            container.appendChild(item);
+                        });
+                        success = true;
+                        return; // Exit if found
+                    } catch (err) {
+                        console.log("YT Mask failed, trying next...");
+                    }
+                }
             }
+            if (!success) container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>YT servers blocked by ISP.</p>`;
         }
 
-        // Dummy Like Function (Foundation for next update)
         function toggleLike(btn, songName) {
             btn.classList.toggle('liked');
             if(btn.classList.contains('liked')) {
@@ -257,22 +289,25 @@
             }
         }
 
-        // Play Saavn
-        function playSaavn(audioUrl, songTitle, songArtist, songThumb) {
-            updatePlayerUI(songTitle, songArtist, songThumb, "Playing HQ Audio... 🎵");
+        // Play Saavn (Direct Audio)
+        function playAudio(audioUrl, songTitle, songArtist, songThumb) {
+            updatePlayerUI(songTitle, songArtist, songThumb, "Playing Audio... 🎵");
             audio.src = audioUrl;
             startAudio();
         }
 
-        // Play Invidious (YouTube)
-        async function playInvidious(videoId, songTitle, songArtist, songThumb) {
+        // Play YT (Extract Audio via proxy)
+        async function playYT(videoId, songTitle, songArtist, songThumb) {
             updatePlayerUI(songTitle, songArtist, songThumb, "Extracting Audio... 🎧");
             try {
-                const response = await fetch(`${currentInvServer}/api/v1/videos/${videoId}`);
+                // Try proxying the extraction too
+                let targetUrl = `${currentYtServer}/api/v1/videos/${videoId}`;
+                let finalUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                
+                const response = await fetch(finalUrl);
                 const data = await response.json();
                 
-                // Find best audio-only stream
-                const audioStreams = data.adaptiveFormats.filter(f => f.type.includes('audio'));
+                const audioStreams = data.adaptiveFormats?.filter(f => f.type.includes('audio')) || [];
                 if (audioStreams.length > 0) {
                     audio.src = audioStreams[0].url;
                     statusMsg.innerText = "Playing YouTube Stream...";
