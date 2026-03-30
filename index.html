@@ -72,7 +72,7 @@
         <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
         
         <div class="song-title" id="title">CNMP Player</div>
-        <div class="artist-name" id="artist">Lightning Speed Enabled ⚡</div>
+        <div class="artist-name" id="artist">Kill Switch Enabled ⏱️</div>
         
         <audio id="audio"></audio>
 
@@ -105,7 +105,7 @@
         const currentTimeEl = document.getElementById('currentTime');
         const totalTimeEl = document.getElementById('totalTime');
 
-        // TOP 8 Global Working Servers (Load Balancing Race)
+        // TOP 8 Global Working Servers
         const API_SERVERS = [
             "https://pipedapi.kavin.rocks",
             "https://api.piped.projectsegfau.lt",
@@ -117,31 +117,42 @@
             "https://pipedapi.adminforge.de"
         ];
         
-        // This will remember which server won the race
         let currentServer = API_SERVERS[0]; 
 
         async function searchAlbum() {
             const query = document.getElementById('searchInput').value;
             if(!query) return;
 
-            statusMsg.innerText = "Racing across 8 servers for the fastest result... 🚀";
+            statusMsg.innerText = "Racing servers with 3.5s Kill Switch... 🚀";
             resultsList.innerHTML = ""; 
             
-            // THE HACK: Send request to ALL 8 servers at the EXACT SAME TIME
+            // Send request to ALL 8 servers with a timeout
             const fetchPromises = API_SERVERS.map(async (server) => {
-                const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=all`);
-                if (!response.ok) throw new Error("Server down");
-                const data = await response.json();
-                const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
-                if (streams.length === 0) throw new Error("No streams");
-                return { server, streams }; // Return the winner
+                // KILL SWITCH: 3.5 Seconds Max
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500); 
+
+                try {
+                    const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=all`, { signal: controller.signal });
+                    clearTimeout(timeoutId); 
+                    
+                    if (!response.ok) throw new Error("Server blocked");
+                    const data = await response.json();
+                    
+                    const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
+                    if (streams.length === 0) throw new Error("No streams");
+                    
+                    return { server, streams }; 
+                } catch (error) {
+                    throw error; // Fail silently so Promise.any moves to the next
+                }
             });
 
             try {
-                // Promise.any() picks the FIRST server that replies and ignores the slow/dead ones!
+                // Picks the FIRST server that replies within 3.5 seconds!
                 const fastestResult = await Promise.any(fetchPromises);
                 
-                currentServer = fastestResult.server; // Save the winning server for playing audio
+                currentServer = fastestResult.server; 
                 const streams = fastestResult.streams;
 
                 statusMsg.innerText = "Lightning Fast Result! ⚡ Select a song.";
@@ -162,8 +173,8 @@
                     resultsList.appendChild(item);
                 });
             } catch (error) {
-                console.error("All servers failed.");
-                statusMsg.innerText = "All servers are busy. Please try again in a minute!";
+                console.error("All servers timed out or failed.");
+                statusMsg.innerText = "YouTube Blocked These Servers. Tell me, and we'll switch to Plan B!";
                 statusMsg.style.color = "#ff4d4d";
             }
         }
@@ -172,10 +183,10 @@
             title.innerText = songTitle;
             artist.innerText = songArtist;
             cover.src = songThumb || cover.src;
-            statusMsg.innerText = "Extracting audio from fastest server... 🎧";
+            statusMsg.innerText = "Extracting audio... 🎧";
             
             try {
-                // Ask ONLY the server that won the race to give the audio
+                // Ask ONLY the server that won the race
                 const response = await fetch(`${currentServer}/streams/${id}`);
                 const data = await response.json();
 
