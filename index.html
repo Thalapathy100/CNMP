@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CNMP - God Mode</title>
+    <title>CNMP - Ultimate Engine</title>
     <style>
         body { 
             background-color: #0f0f13; color: #ffffff; 
@@ -45,7 +45,7 @@
             border-radius: 5px; outline: none; cursor: pointer;
         }
         
-        .controls { display: flex; justify-content: center; align-items: center; gap: 25px; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; }
         .controls button { 
             background: none; border: none; color: #00bfff; 
             font-size: 25px; cursor: pointer; transition: 0.2s;
@@ -58,15 +58,18 @@
         
         .result-item {
             background: #1a1a24; padding: 10px; border-radius: 10px; 
-            margin-bottom: 10px; display: flex; align-items: center; gap: 15px;
+            margin-bottom: 10px; display: flex; align-items: center; gap: 12px;
             cursor: pointer; border: 1px solid #2d2d3d; transition: 0.2s;
         }
         .result-item:hover { background: #252535; border-color: #00bfff; }
         .result-thumb { width: 50px; height: 50px; border-radius: 5px; object-fit: cover; }
-        .result-info { display: flex; flex-direction: column; overflow: hidden; }
+        .result-info { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
         .result-title { font-size: 0.9em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;}
         .result-artist { font-size: 0.75em; color: #8888a0; }
         .source-badge { font-size: 0.6em; background: #333; padding: 2px 5px; border-radius: 3px; width: max-content; margin-top: 3px;}
+        
+        .like-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 5px; color: #555; transition: 0.3s; }
+        .like-btn.liked { color: #ff0055; transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -79,14 +82,13 @@
 
         <div class="tabs">
             <div class="tab active" id="tab-saavn" onclick="switchTab('saavn')">🎵 Saavn</div>
-            <div class="tab" id="tab-ytm" onclick="switchTab('ytm')">🎧 YT Music</div>
-            <div class="tab" id="tab-yt" onclick="switchTab('yt')">🎥 YT Video</div>
+            <div class="tab" id="tab-yt" onclick="switchTab('yt')">🎥 YouTube Bypass</div>
         </div>
 
         <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
         
-        <div class="song-title" id="title">God-Mode Engine</div>
-        <div class="artist-name" id="artist">ISP Bypass Enabled 🛡️</div>
+        <div class="song-title" id="title">CNMP Engine</div>
+        <div class="artist-name" id="artist">Ready for Action 🚀</div>
         
         <audio id="audio"></audio>
 
@@ -99,13 +101,12 @@
         <div class="controls">
             <button onclick="toggleLoop()" id="loopBtn" style="color: gray;">🔁</button>
             <button onclick="togglePlay()" id="playBtn">▶️</button>
-            <button onclick="downloadSong()" id="downBtn">⬇️</button>
+            <button onclick="downloadSong()" id="downBtn" title="Download">⬇️</button>
         </div>
         <p id="statusMessage" style="color: #00bfff; font-size: 0.8em; margin-top: 10px;"></p>
     </div>
 
     <div class="list-container active" id="list-saavn"></div>
-    <div class="list-container" id="list-ytm"></div>
     <div class="list-container" id="list-yt"></div>
 
     <script>
@@ -121,26 +122,22 @@
         const totalTimeEl = document.getElementById('totalTime');
 
         function switchTab(platform) {
-            ['saavn', 'ytm', 'yt'].forEach(p => {
+            ['saavn', 'yt'].forEach(p => {
                 document.getElementById(`tab-${p}`).className = platform === p ? 'tab active' : 'tab';
                 document.getElementById(`list-${p}`).className = platform === p ? 'list-container active' : 'list-container';
             });
         }
 
-        // God-Mode Arrays: Multiple endpoints to beat network blocks
-        const SAAVN_APIS = [
-            "https://saavn.me/search/songs?query=",
-            "https://jiosaavn-api-privatecvc2.vercel.app/search/songs?query=",
-            "https://saavn.dev/api/search/songs?query="
+        // NEW: Invidious API Servers (YouTube Block Bypass)
+        const INV_SERVERS = [
+            "https://inv.tux.pizza",
+            "https://invidious.nerdvpn.de",
+            "https://invidious.privacydev.net"
         ];
-        
-        const YT_SERVERS = [
-            "https://pipedapi.smnz.de",
-            "https://pipedapi.adminforge.de",
-            "https://api.piped.projectsegfau.lt",
-            "https://pipedapi.tokhmi.xyz"
-        ];
-        let currentYtServer = YT_SERVERS[0];
+        let currentInvServer = INV_SERVERS[0];
+
+        // Increased Saavn limit to 40 songs!
+        const SAAVN_API = "https://saavn.dev/api/search/songs?limit=40&query=";
 
         function decodeHTML(html) {
             const txt = document.createElement("textarea");
@@ -152,150 +149,139 @@
             const query = document.getElementById('searchInput').value;
             if(!query) return;
 
-            statusMsg.innerText = "Firing God-Mode Router... 🚀";
-            
+            statusMsg.innerText = "Searching... 🚀";
             fetchSaavn(query);
-            fetchFromPiped(query, 'music_songs', 'list-ytm', '🎧 YT Music', '#ff0055');
-            fetchFromPiped(query, 'videos', 'list-yt', '🎥 YouTube', '#ff4d4d');
+            fetchInvidious(query);
         }
 
-        // Engine 1: Saavn with Fallback Loop
+        // Engine 1: Saavn (Now gets 40 results)
         async function fetchSaavn(query) {
             const container = document.getElementById('list-saavn');
-            container.innerHTML = "<p style='text-align:center;'>Fetching HQ Music...</p>";
+            container.innerHTML = "<p style='text-align:center;'>Fetching 40 HQ Songs...</p>";
             
-            let success = false;
+            try {
+                const response = await fetch(SAAVN_API + encodeURIComponent(query));
+                const json = await response.json();
+                
+                let songs = json.data.results || [];
 
-            // Loops through all 3 Saavn servers until one works!
-            for (let api of SAAVN_APIS) {
-                try {
-                    const response = await fetch(api + encodeURIComponent(query));
-                    if (!response.ok) continue; // Move to next server if failed
-                    
-                    const json = await response.json();
-                    
-                    // Handling different Saavn API structures
-                    let songs = [];
-                    if (json.data && json.data.results) songs = json.data.results;
-                    else if (json.results) songs = json.results;
-                    else if (json.data) songs = json.data;
+                if (songs.length > 0) {
+                    container.innerHTML = "";
+                    songs.forEach(song => {
+                        let songTitle = decodeHTML(song.name || song.title || "Unknown");
+                        let songArtist = decodeHTML(song.primaryArtists || song.singers || "Unknown");
+                        let songThumb = "https://via.placeholder.com/50";
+                        if (song.image && song.image.length > 0) songThumb = song.image[song.image.length - 1].link || song.image[song.image.length - 1].url;
+                        
+                        let audioUrl = "";
+                        let downloadArr = song.downloadUrl || song.media_url;
+                        if (downloadArr && downloadArr.length > 0) audioUrl = downloadArr[downloadArr.length - 1].link || downloadArr[downloadArr.length - 1].url;
 
-                    if (songs && songs.length > 0) {
-                        container.innerHTML = "";
-                        songs.forEach(song => {
-                            let songTitle = decodeHTML(song.name || song.title || "Unknown");
-                            let songArtist = decodeHTML(song.primaryArtists || song.singers || "Unknown");
-                            
-                            let songThumb = "https://via.placeholder.com/50";
-                            if (song.image) {
-                                if (Array.isArray(song.image)) songThumb = song.image[song.image.length - 1].link || song.image[song.image.length - 1].url;
-                                else if (typeof song.image === 'string') songThumb = song.image;
-                            }
-                            
-                            let audioUrl = "";
-                            let downloadArr = song.downloadUrl || song.media_url;
-                            if (Array.isArray(downloadArr)) {
-                                audioUrl = downloadArr[downloadArr.length - 1].link || downloadArr[downloadArr.length - 1].url;
-                            } else if (typeof downloadArr === 'string') {
-                                audioUrl = downloadArr;
-                            }
+                        if (!audioUrl) return;
 
-                            if (!audioUrl) return;
-
-                            const item = document.createElement('div');
-                            item.className = 'result-item';
-                            item.onclick = () => playSaavn(audioUrl, songTitle, songArtist, songThumb);
-                            item.innerHTML = `
-                                <img src="${songThumb}" class="result-thumb">
-                                <div class="result-info">
-                                    <span class="result-title">${songTitle}</span>
-                                    <span class="result-artist">${songArtist}</span>
-                                    <span class="source-badge" style="color:#00ff88;">🎵 Saavn HQ</span>
-                                </div>
-                            `;
-                            container.appendChild(item);
-                        });
-                        success = true;
-                        statusMsg.innerText = "HQ Music Found! Select a tab.";
-                        break; // Stop the loop! We found the music.
-                    }
-                } catch (err) {
-                    console.log("Saavn Server Failed, trying next...");
+                        const item = document.createElement('div');
+                        item.className = 'result-item';
+                        item.innerHTML = `
+                            <img src="${songThumb}" class="result-thumb" onclick="playSaavn('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
+                            <div class="result-info" onclick="playSaavn('${audioUrl}', '${songTitle.replace(/'/g, "\\'")}', '${songArtist.replace(/'/g, "\\'")}', '${songThumb}')">
+                                <span class="result-title">${songTitle}</span>
+                                <span class="result-artist">${songArtist}</span>
+                                <span class="source-badge" style="color:#00ff88;">🎵 Saavn HQ</span>
+                            </div>
+                            <button class="like-btn" onclick="toggleLike(this, '${songTitle}')">🤍</button>
+                        `;
+                        container.appendChild(item);
+                    });
+                    statusMsg.innerText = "Select a song to play!";
+                } else {
+                    container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>No Saavn results found.</p>";
                 }
-            }
-
-            if (!success) {
-                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>ISP Blocked Saavn. Try switching to Mobile Data or WiFi!</p>";
+            } catch (err) {
+                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>Saavn Engine Failed.</p>";
             }
         }
 
-        // Engine 2 & 3: YouTube
-        async function fetchFromPiped(query, filter, containerId, badgeText, badgeColor) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = `<p style='text-align:center;'>Fetching ${badgeText}...</p>`;
+        // Engine 2: YouTube via Invidious (Bypass Blocks)
+        async function fetchInvidious(query) {
+            const container = document.getElementById('list-yt');
+            container.innerHTML = `<p style='text-align:center;'>Bypassing YouTube Blocks...</p>`;
             
-            const fetchPromises = YT_SERVERS.map(async (server) => {
+            const fetchPromises = INV_SERVERS.map(async (server) => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 4500); 
+                const timeoutId = setTimeout(() => controller.abort(), 5000); 
                 try {
-                    const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=${filter}`, { signal: controller.signal });
+                    const response = await fetch(`${server}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, { signal: controller.signal });
                     clearTimeout(timeoutId);
                     if (!response.ok) throw new Error("Blocked");
                     const data = await response.json();
-                    const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
-                    if (streams.length === 0) throw new Error("Empty");
-                    return { server, streams };
+                    if (data.length === 0) throw new Error("Empty");
+                    return { server, videos: data.slice(0, 15) }; // Getting 15 videos
                 } catch (error) { throw error; }
             });
 
             try {
                 const fastest = await Promise.any(fetchPromises);
-                currentYtServer = fastest.server; 
+                currentInvServer = fastest.server; 
                 container.innerHTML = "";
 
-                fastest.streams.forEach(song => {
-                    const vid = song.url.split('?v=')[1]; 
+                fastest.videos.forEach(video => {
+                    const thumb = video.videoThumbnails.find(t => t.quality === 'medium')?.url || video.videoThumbnails[0]?.url || "https://via.placeholder.com/50";
+                    
                     const item = document.createElement('div');
                     item.className = 'result-item';
-                    item.onclick = () => playYouTube(vid, song.title, song.uploaderName, song.thumbnail);
                     item.innerHTML = `
-                        <img src="${song.thumbnail || 'https://via.placeholder.com/50'}" class="result-thumb">
-                        <div class="result-info">
-                            <span class="result-title">${song.title}</span>
-                            <span class="result-artist">${song.uploaderName}</span>
-                            <span class="source-badge" style="color:${badgeColor};">${badgeText}</span>
+                        <img src="${thumb}" class="result-thumb" onclick="playInvidious('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
+                        <div class="result-info" onclick="playInvidious('${video.videoId}', '${video.title.replace(/'/g, "\\'")}', '${video.author.replace(/'/g, "\\'")}', '${thumb}')">
+                            <span class="result-title">${video.title}</span>
+                            <span class="result-artist">${video.author}</span>
+                            <span class="source-badge" style="color:#ff4d4d;">🎥 YouTube</span>
                         </div>
+                        <button class="like-btn" onclick="toggleLike(this, '${video.title}')">🤍</button>
                     `;
                     container.appendChild(item);
                 });
             } catch (err) {
-                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>${badgeText} is Blocked by your Network.</p>`;
+                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>YouTube is heavily blocked by your Network.</p>`;
             }
         }
 
-        // Player Logic: Saavn
+        // Dummy Like Function (Foundation for next update)
+        function toggleLike(btn, songName) {
+            btn.classList.toggle('liked');
+            if(btn.classList.contains('liked')) {
+                btn.innerText = '❤️';
+                statusMsg.innerText = `Added to Favorites!`;
+            } else {
+                btn.innerText = '🤍';
+                statusMsg.innerText = `Removed from Favorites.`;
+            }
+        }
+
+        // Play Saavn
         function playSaavn(audioUrl, songTitle, songArtist, songThumb) {
             updatePlayerUI(songTitle, songArtist, songThumb, "Playing HQ Audio... 🎵");
             audio.src = audioUrl;
             startAudio();
         }
 
-        // Player Logic: YouTube
-        async function playYouTube(vid, songTitle, songArtist, songThumb) {
-            updatePlayerUI(songTitle, songArtist, songThumb, "Extracting YouTube Audio... 🎧");
+        // Play Invidious (YouTube)
+        async function playInvidious(videoId, songTitle, songArtist, songThumb) {
+            updatePlayerUI(songTitle, songArtist, songThumb, "Extracting Audio... 🎧");
             try {
-                const response = await fetch(`${currentYtServer}/streams/${vid}`);
+                const response = await fetch(`${currentInvServer}/api/v1/videos/${videoId}`);
                 const data = await response.json();
-                if (data.audioStreams && data.audioStreams.length > 0) {
-                    const bestAudio = data.audioStreams.find(a => a.format === 'M4A') || data.audioStreams[0];
-                    audio.src = bestAudio.url;
+                
+                // Find best audio-only stream
+                const audioStreams = data.adaptiveFormats.filter(f => f.type.includes('audio'));
+                if (audioStreams.length > 0) {
+                    audio.src = audioStreams[0].url;
                     statusMsg.innerText = "Playing YouTube Stream...";
                     startAudio();
                 } else {
-                    statusMsg.innerText = "Stream extraction failed.";
+                    statusMsg.innerText = "No audio stream found.";
                 }
             } catch (err) {
-                statusMsg.innerText = "Error playing YouTube audio.";
+                statusMsg.innerText = "Extraction failed.";
             }
         }
 
