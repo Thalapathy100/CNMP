@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CNMP - Tri-Engine Pro</title>
+    <title>CNMP - God Mode</title>
     <style>
         body { 
             background-color: #0f0f13; color: #ffffff; 
@@ -27,7 +27,6 @@
             background: #00bfff; color: white; font-weight: bold; cursor: pointer;
         }
         
-        /* 3 TABS CSS */
         .tabs { display: flex; width: 100%; background: #2d2d3d; border-radius: 10px; overflow: hidden; margin-bottom: 15px; }
         .tab { flex: 1; padding: 10px 5px; text-align: center; cursor: pointer; font-size: 0.8em; font-weight: bold; color: #8888a0; transition: 0.3s; }
         .tab.active { background: #00bfff; color: white; }
@@ -54,7 +53,6 @@
         #playBtn { font-size: 45px; }
         .controls button:active { transform: scale(0.9); color: white; }
 
-        /* LISTS CSS */
         .list-container { display: none; width: 90%; max-width: 350px; text-align: left; }
         .list-container.active { display: block; }
         
@@ -87,8 +85,8 @@
 
         <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
         
-        <div class="song-title" id="title">CNMP Tri-Engine</div>
-        <div class="artist-name" id="artist">3 Platforms in 1 App!</div>
+        <div class="song-title" id="title">God-Mode Engine</div>
+        <div class="artist-name" id="artist">ISP Bypass Enabled 🛡️</div>
         
         <audio id="audio"></audio>
 
@@ -122,7 +120,6 @@
         const currentTimeEl = document.getElementById('currentTime');
         const totalTimeEl = document.getElementById('totalTime');
 
-        // Tab Switching Logic
         function switchTab(platform) {
             ['saavn', 'ytm', 'yt'].forEach(p => {
                 document.getElementById(`tab-${p}`).className = platform === p ? 'tab active' : 'tab';
@@ -130,9 +127,16 @@
             });
         }
 
-        const SAAVN_API = "https://saavn.dev/api/search/songs?query=";
+        // God-Mode Arrays: Multiple endpoints to beat network blocks
+        const SAAVN_APIS = [
+            "https://saavn.me/search/songs?query=",
+            "https://jiosaavn-api-privatecvc2.vercel.app/search/songs?query=",
+            "https://saavn.dev/api/search/songs?query="
+        ];
+        
         const YT_SERVERS = [
-            "https://pipedapi.kavin.rocks",
+            "https://pipedapi.smnz.de",
+            "https://pipedapi.adminforge.de",
             "https://api.piped.projectsegfau.lt",
             "https://pipedapi.tokhmi.xyz"
         ];
@@ -144,68 +148,95 @@
             return txt.value;
         }
 
-        // Master Search: Fires all 3 engines!
         function searchAll() {
             const query = document.getElementById('searchInput').value;
             if(!query) return;
 
-            statusMsg.innerText = "Firing Tri-Engines... 🚀";
+            statusMsg.innerText = "Firing God-Mode Router... 🚀";
             
-            // Trigger 3 simultaneous searches
             fetchSaavn(query);
             fetchFromPiped(query, 'music_songs', 'list-ytm', '🎧 YT Music', '#ff0055');
             fetchFromPiped(query, 'videos', 'list-yt', '🎥 YouTube', '#ff4d4d');
         }
 
-        // Engine 1: JioSaavn (HQ Original Music)
+        // Engine 1: Saavn with Fallback Loop
         async function fetchSaavn(query) {
             const container = document.getElementById('list-saavn');
             container.innerHTML = "<p style='text-align:center;'>Fetching HQ Music...</p>";
-            try {
-                const response = await fetch(SAAVN_API + encodeURIComponent(query));
-                const json = await response.json();
-                const songs = json.data.results;
-                container.innerHTML = "";
+            
+            let success = false;
 
-                if (songs && songs.length > 0) {
-                    songs.forEach(song => {
-                        let songTitle = decodeHTML(song.name || "Unknown");
-                        let songArtist = decodeHTML(song.primaryArtists || "Unknown Artist");
-                        let songThumb = song.image ? (song.image[song.image.length - 1].link || song.image[song.image.length - 1].url) : "https://via.placeholder.com/50";
-                        let audioUrl = song.downloadUrl ? (song.downloadUrl[song.downloadUrl.length - 1].link || song.downloadUrl[song.downloadUrl.length - 1].url) : "";
+            // Loops through all 3 Saavn servers until one works!
+            for (let api of SAAVN_APIS) {
+                try {
+                    const response = await fetch(api + encodeURIComponent(query));
+                    if (!response.ok) continue; // Move to next server if failed
+                    
+                    const json = await response.json();
+                    
+                    // Handling different Saavn API structures
+                    let songs = [];
+                    if (json.data && json.data.results) songs = json.data.results;
+                    else if (json.results) songs = json.results;
+                    else if (json.data) songs = json.data;
 
-                        if (!audioUrl) return;
+                    if (songs && songs.length > 0) {
+                        container.innerHTML = "";
+                        songs.forEach(song => {
+                            let songTitle = decodeHTML(song.name || song.title || "Unknown");
+                            let songArtist = decodeHTML(song.primaryArtists || song.singers || "Unknown");
+                            
+                            let songThumb = "https://via.placeholder.com/50";
+                            if (song.image) {
+                                if (Array.isArray(song.image)) songThumb = song.image[song.image.length - 1].link || song.image[song.image.length - 1].url;
+                                else if (typeof song.image === 'string') songThumb = song.image;
+                            }
+                            
+                            let audioUrl = "";
+                            let downloadArr = song.downloadUrl || song.media_url;
+                            if (Array.isArray(downloadArr)) {
+                                audioUrl = downloadArr[downloadArr.length - 1].link || downloadArr[downloadArr.length - 1].url;
+                            } else if (typeof downloadArr === 'string') {
+                                audioUrl = downloadArr;
+                            }
 
-                        const item = document.createElement('div');
-                        item.className = 'result-item';
-                        item.onclick = () => playSaavn(audioUrl, songTitle, songArtist, songThumb);
-                        item.innerHTML = `
-                            <img src="${songThumb}" class="result-thumb">
-                            <div class="result-info">
-                                <span class="result-title">${songTitle}</span>
-                                <span class="result-artist">${songArtist}</span>
-                                <span class="source-badge" style="color:#00ff88;">🎵 Saavn 320kbps</span>
-                            </div>
-                        `;
-                        container.appendChild(item);
-                    });
-                    statusMsg.innerText = "Results arrived! Select a tab.";
-                } else {
-                    container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>No Saavn results.</p>";
+                            if (!audioUrl) return;
+
+                            const item = document.createElement('div');
+                            item.className = 'result-item';
+                            item.onclick = () => playSaavn(audioUrl, songTitle, songArtist, songThumb);
+                            item.innerHTML = `
+                                <img src="${songThumb}" class="result-thumb">
+                                <div class="result-info">
+                                    <span class="result-title">${songTitle}</span>
+                                    <span class="result-artist">${songArtist}</span>
+                                    <span class="source-badge" style="color:#00ff88;">🎵 Saavn HQ</span>
+                                </div>
+                            `;
+                            container.appendChild(item);
+                        });
+                        success = true;
+                        statusMsg.innerText = "HQ Music Found! Select a tab.";
+                        break; // Stop the loop! We found the music.
+                    }
+                } catch (err) {
+                    console.log("Saavn Server Failed, trying next...");
                 }
-            } catch (err) {
-                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>Saavn Engine Failed.</p>";
+            }
+
+            if (!success) {
+                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>ISP Blocked Saavn. Try switching to Mobile Data or WiFi!</p>";
             }
         }
 
-        // Engine 2 & 3: YouTube Music & YouTube Videos (Racing Load Balancer)
+        // Engine 2 & 3: YouTube
         async function fetchFromPiped(query, filter, containerId, badgeText, badgeColor) {
             const container = document.getElementById(containerId);
             container.innerHTML = `<p style='text-align:center;'>Fetching ${badgeText}...</p>`;
             
             const fetchPromises = YT_SERVERS.map(async (server) => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 sec timeout
+                const timeoutId = setTimeout(() => controller.abort(), 4500); 
                 try {
                     const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=${filter}`, { signal: controller.signal });
                     clearTimeout(timeoutId);
@@ -219,7 +250,7 @@
 
             try {
                 const fastest = await Promise.any(fetchPromises);
-                currentYtServer = fastest.server; // Save fastest server for streaming
+                currentYtServer = fastest.server; 
                 container.innerHTML = "";
 
                 fastest.streams.forEach(song => {
@@ -238,18 +269,18 @@
                     container.appendChild(item);
                 });
             } catch (err) {
-                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>${badgeText} Servers Blocked Currently.</p>`;
+                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>${badgeText} is Blocked by your Network.</p>`;
             }
         }
 
-        // Player Logic: Saavn (Instant Link)
+        // Player Logic: Saavn
         function playSaavn(audioUrl, songTitle, songArtist, songThumb) {
             updatePlayerUI(songTitle, songArtist, songThumb, "Playing HQ Audio... 🎵");
             audio.src = audioUrl;
             startAudio();
         }
 
-        // Player Logic: YouTube (Requires Extraction)
+        // Player Logic: YouTube
         async function playYouTube(vid, songTitle, songArtist, songThumb) {
             updatePlayerUI(songTitle, songArtist, songThumb, "Extracting YouTube Audio... 🎧");
             try {
