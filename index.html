@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CNMP - Global Pro Player</title>
+    <title>CNMP - Tri-Engine Pro</title>
     <style>
         body { 
             background-color: #0f0f13; color: #ffffff; 
@@ -17,7 +17,7 @@
             width: 90%; max-width: 350px; text-align: center; 
             border: 1px solid #2d2d3d; margin-bottom: 20px;
         }
-        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 15px; }
         .search-box input {
             flex: 1; padding: 10px; border-radius: 10px; border: none;
             background: #2d2d3d; color: white; outline: none;
@@ -26,6 +26,12 @@
             padding: 10px 15px; border-radius: 10px; border: none;
             background: #00bfff; color: white; font-weight: bold; cursor: pointer;
         }
+        
+        /* 3 TABS CSS */
+        .tabs { display: flex; width: 100%; background: #2d2d3d; border-radius: 10px; overflow: hidden; margin-bottom: 15px; }
+        .tab { flex: 1; padding: 10px 5px; text-align: center; cursor: pointer; font-size: 0.8em; font-weight: bold; color: #8888a0; transition: 0.3s; }
+        .tab.active { background: #00bfff; color: white; }
+
         .album-art { 
             width: 100%; height: 250px; background: #252535; 
             border-radius: 15px; margin-bottom: 15px; object-fit: cover;
@@ -48,7 +54,10 @@
         #playBtn { font-size: 45px; }
         .controls button:active { transform: scale(0.9); color: white; }
 
-        .results-container { width: 90%; max-width: 350px; text-align: left; }
+        /* LISTS CSS */
+        .list-container { display: none; width: 90%; max-width: 350px; text-align: left; }
+        .list-container.active { display: block; }
+        
         .result-item {
             background: #1a1a24; padding: 10px; border-radius: 10px; 
             margin-bottom: 10px; display: flex; align-items: center; gap: 15px;
@@ -59,20 +68,27 @@
         .result-info { display: flex; flex-direction: column; overflow: hidden; }
         .result-title { font-size: 0.9em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;}
         .result-artist { font-size: 0.75em; color: #8888a0; }
+        .source-badge { font-size: 0.6em; background: #333; padding: 2px 5px; border-radius: 3px; width: max-content; margin-top: 3px;}
     </style>
 </head>
 <body>
 
     <div class="player-container">
         <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search a movie or song...">
-            <button onclick="searchAlbum()">Search</button>
+            <input type="text" id="searchInput" placeholder="Search a song or BGM...">
+            <button onclick="searchAll()">Search</button>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" id="tab-saavn" onclick="switchTab('saavn')">🎵 Saavn</div>
+            <div class="tab" id="tab-ytm" onclick="switchTab('ytm')">🎧 YT Music</div>
+            <div class="tab" id="tab-yt" onclick="switchTab('yt')">🎥 YT Video</div>
         </div>
 
         <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" alt="Album Cover" class="album-art" id="cover">
         
-        <div class="song-title" id="title">CNMP Player</div>
-        <div class="artist-name" id="artist">Kill Switch Enabled ⏱️</div>
+        <div class="song-title" id="title">CNMP Tri-Engine</div>
+        <div class="artist-name" id="artist">3 Platforms in 1 App!</div>
         
         <audio id="audio"></audio>
 
@@ -90,7 +106,9 @@
         <p id="statusMessage" style="color: #00bfff; font-size: 0.8em; margin-top: 10px;"></p>
     </div>
 
-    <div class="results-container" id="resultsList"></div>
+    <div class="list-container active" id="list-saavn"></div>
+    <div class="list-container" id="list-ytm"></div>
+    <div class="list-container" id="list-yt"></div>
 
     <script>
         const audio = document.getElementById('audio');
@@ -100,124 +118,175 @@
         const artist = document.getElementById('artist');
         const cover = document.getElementById('cover');
         const statusMsg = document.getElementById('statusMessage');
-        const resultsList = document.getElementById('resultsList');
         const progressBar = document.getElementById('progressBar');
         const currentTimeEl = document.getElementById('currentTime');
         const totalTimeEl = document.getElementById('totalTime');
 
-        // TOP 8 Global Working Servers
-        const API_SERVERS = [
+        // Tab Switching Logic
+        function switchTab(platform) {
+            ['saavn', 'ytm', 'yt'].forEach(p => {
+                document.getElementById(`tab-${p}`).className = platform === p ? 'tab active' : 'tab';
+                document.getElementById(`list-${p}`).className = platform === p ? 'list-container active' : 'list-container';
+            });
+        }
+
+        const SAAVN_API = "https://saavn.dev/api/search/songs?query=";
+        const YT_SERVERS = [
             "https://pipedapi.kavin.rocks",
             "https://api.piped.projectsegfau.lt",
-            "https://pipedapi.tokhmi.xyz",
-            "https://piped-api.lunar.icu",
-            "https://pipedapi.moomoo.me",
-            "https://pipedapi.syncpundit.io",
-            "https://pipedapi.smnz.de",
-            "https://pipedapi.adminforge.de"
+            "https://pipedapi.tokhmi.xyz"
         ];
-        
-        let currentServer = API_SERVERS[0]; 
+        let currentYtServer = YT_SERVERS[0];
 
-        async function searchAlbum() {
+        function decodeHTML(html) {
+            const txt = document.createElement("textarea");
+            txt.innerHTML = html;
+            return txt.value;
+        }
+
+        // Master Search: Fires all 3 engines!
+        function searchAll() {
             const query = document.getElementById('searchInput').value;
             if(!query) return;
 
-            statusMsg.innerText = "Racing servers with 3.5s Kill Switch... 🚀";
-            resultsList.innerHTML = ""; 
+            statusMsg.innerText = "Firing Tri-Engines... 🚀";
             
-            // Send request to ALL 8 servers with a timeout
-            const fetchPromises = API_SERVERS.map(async (server) => {
-                // KILL SWITCH: 3.5 Seconds Max
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3500); 
+            // Trigger 3 simultaneous searches
+            fetchSaavn(query);
+            fetchFromPiped(query, 'music_songs', 'list-ytm', '🎧 YT Music', '#ff0055');
+            fetchFromPiped(query, 'videos', 'list-yt', '🎥 YouTube', '#ff4d4d');
+        }
 
-                try {
-                    const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=all`, { signal: controller.signal });
-                    clearTimeout(timeoutId); 
-                    
-                    if (!response.ok) throw new Error("Server blocked");
-                    const data = await response.json();
-                    
-                    const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
-                    if (streams.length === 0) throw new Error("No streams");
-                    
-                    return { server, streams }; 
-                } catch (error) {
-                    throw error; // Fail silently so Promise.any moves to the next
+        // Engine 1: JioSaavn (HQ Original Music)
+        async function fetchSaavn(query) {
+            const container = document.getElementById('list-saavn');
+            container.innerHTML = "<p style='text-align:center;'>Fetching HQ Music...</p>";
+            try {
+                const response = await fetch(SAAVN_API + encodeURIComponent(query));
+                const json = await response.json();
+                const songs = json.data.results;
+                container.innerHTML = "";
+
+                if (songs && songs.length > 0) {
+                    songs.forEach(song => {
+                        let songTitle = decodeHTML(song.name || "Unknown");
+                        let songArtist = decodeHTML(song.primaryArtists || "Unknown Artist");
+                        let songThumb = song.image ? (song.image[song.image.length - 1].link || song.image[song.image.length - 1].url) : "https://via.placeholder.com/50";
+                        let audioUrl = song.downloadUrl ? (song.downloadUrl[song.downloadUrl.length - 1].link || song.downloadUrl[song.downloadUrl.length - 1].url) : "";
+
+                        if (!audioUrl) return;
+
+                        const item = document.createElement('div');
+                        item.className = 'result-item';
+                        item.onclick = () => playSaavn(audioUrl, songTitle, songArtist, songThumb);
+                        item.innerHTML = `
+                            <img src="${songThumb}" class="result-thumb">
+                            <div class="result-info">
+                                <span class="result-title">${songTitle}</span>
+                                <span class="result-artist">${songArtist}</span>
+                                <span class="source-badge" style="color:#00ff88;">🎵 Saavn 320kbps</span>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                    statusMsg.innerText = "Results arrived! Select a tab.";
+                } else {
+                    container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>No Saavn results.</p>";
                 }
+            } catch (err) {
+                container.innerHTML = "<p style='color:#ff4d4d; text-align:center;'>Saavn Engine Failed.</p>";
+            }
+        }
+
+        // Engine 2 & 3: YouTube Music & YouTube Videos (Racing Load Balancer)
+        async function fetchFromPiped(query, filter, containerId, badgeText, badgeColor) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<p style='text-align:center;'>Fetching ${badgeText}...</p>`;
+            
+            const fetchPromises = YT_SERVERS.map(async (server) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 sec timeout
+                try {
+                    const response = await fetch(`${server}/search?q=${encodeURIComponent(query)}&filter=${filter}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!response.ok) throw new Error("Blocked");
+                    const data = await response.json();
+                    const streams = data.items.filter(item => item.type === 'stream').slice(0, 10);
+                    if (streams.length === 0) throw new Error("Empty");
+                    return { server, streams };
+                } catch (error) { throw error; }
             });
 
             try {
-                // Picks the FIRST server that replies within 3.5 seconds!
-                const fastestResult = await Promise.any(fetchPromises);
-                
-                currentServer = fastestResult.server; 
-                const streams = fastestResult.streams;
+                const fastest = await Promise.any(fetchPromises);
+                currentYtServer = fastest.server; // Save fastest server for streaming
+                container.innerHTML = "";
 
-                statusMsg.innerText = "Lightning Fast Result! ⚡ Select a song.";
-                
-                streams.forEach(song => {
+                fastest.streams.forEach(song => {
                     const vid = song.url.split('?v=')[1]; 
                     const item = document.createElement('div');
                     item.className = 'result-item';
-                    item.onclick = () => loadAndPlaySong(vid, song.title, song.uploaderName, song.thumbnail);
-                    
+                    item.onclick = () => playYouTube(vid, song.title, song.uploaderName, song.thumbnail);
                     item.innerHTML = `
                         <img src="${song.thumbnail || 'https://via.placeholder.com/50'}" class="result-thumb">
                         <div class="result-info">
                             <span class="result-title">${song.title}</span>
                             <span class="result-artist">${song.uploaderName}</span>
+                            <span class="source-badge" style="color:${badgeColor};">${badgeText}</span>
                         </div>
                     `;
-                    resultsList.appendChild(item);
+                    container.appendChild(item);
                 });
-            } catch (error) {
-                console.error("All servers timed out or failed.");
-                statusMsg.innerText = "YouTube Blocked These Servers. Tell me, and we'll switch to Plan B!";
-                statusMsg.style.color = "#ff4d4d";
+            } catch (err) {
+                container.innerHTML = `<p style='color:#ff4d4d; text-align:center;'>${badgeText} Servers Blocked Currently.</p>`;
             }
         }
 
-        async function loadAndPlaySong(id, songTitle, songArtist, songThumb) {
-            title.innerText = songTitle;
-            artist.innerText = songArtist;
-            cover.src = songThumb || cover.src;
-            statusMsg.innerText = "Extracting audio... 🎧";
-            
-            try {
-                // Ask ONLY the server that won the race
-                const response = await fetch(`${currentServer}/streams/${id}`);
-                const data = await response.json();
+        // Player Logic: Saavn (Instant Link)
+        function playSaavn(audioUrl, songTitle, songArtist, songThumb) {
+            updatePlayerUI(songTitle, songArtist, songThumb, "Playing HQ Audio... 🎵");
+            audio.src = audioUrl;
+            startAudio();
+        }
 
+        // Player Logic: YouTube (Requires Extraction)
+        async function playYouTube(vid, songTitle, songArtist, songThumb) {
+            updatePlayerUI(songTitle, songArtist, songThumb, "Extracting YouTube Audio... 🎧");
+            try {
+                const response = await fetch(`${currentYtServer}/streams/${vid}`);
+                const data = await response.json();
                 if (data.audioStreams && data.audioStreams.length > 0) {
                     const bestAudio = data.audioStreams.find(a => a.format === 'M4A') || data.audioStreams[0];
-                    audio.src = bestAudio.url; 
-                    statusMsg.innerText = "Playing...";
-                    
-                    if ('mediaSession' in navigator) {
-                        navigator.mediaSession.metadata = new MediaMetadata({
-                            title: songTitle,
-                            artist: songArtist,
-                            artwork: [{ src: songThumb, sizes: '512x512', type: 'image/jpeg' }]
-                        });
-                        navigator.mediaSession.setActionHandler('play', () => { audio.play(); playBtn.innerText = "⏸"; });
-                        navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); playBtn.innerText = "▶️"; });
-                    }
-
-                    audio.play().then(() => {
-                        playBtn.innerText = "⏸";
-                    }).catch(() => {
-                        statusMsg.innerText = "Ready! Tap Play (▶️).";
-                        playBtn.innerText = "▶️";
-                    });
+                    audio.src = bestAudio.url;
+                    statusMsg.innerText = "Playing YouTube Stream...";
+                    startAudio();
                 } else {
-                    statusMsg.innerText = "Failed to load audio stream.";
+                    statusMsg.innerText = "Stream extraction failed.";
                 }
-            } catch (error) {
-                console.error("Play Error:", error);
-                statusMsg.innerText = "Error extracting audio. Try another song.";
+            } catch (err) {
+                statusMsg.innerText = "Error playing YouTube audio.";
             }
+        }
+
+        function updatePlayerUI(songTitle, songArtist, songThumb, msg) {
+            title.innerText = songTitle;
+            artist.innerText = songArtist;
+            cover.src = songThumb;
+            statusMsg.innerText = msg;
+            
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: songTitle, artist: songArtist,
+                    artwork: [{ src: songThumb, sizes: '512x512', type: 'image/jpeg' }]
+                });
+                navigator.mediaSession.setActionHandler('play', () => { audio.play(); playBtn.innerText = "⏸"; });
+                navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); playBtn.innerText = "▶️"; });
+            }
+        }
+
+        function startAudio() {
+            audio.play().then(() => { playBtn.innerText = "⏸"; })
+            .catch(() => { playBtn.innerText = "▶️"; statusMsg.innerText = "Ready! Tap Play."; });
         }
 
         function togglePlay() {
@@ -233,15 +302,12 @@
         }
 
         function downloadSong() {
-            if (!audio.src) {
-                statusMsg.innerText = "Play a song first to download!";
-                return;
-            }
-            statusMsg.innerText = "Opening download link...";
+            if (!audio.src) return statusMsg.innerText = "Play a song first!";
             window.open(audio.src, '_blank');
         }
 
         function formatTime(seconds) {
+            if(isNaN(seconds)) return "0:00";
             const min = Math.floor(seconds / 60);
             const sec = Math.floor(seconds % 60);
             return `${min}:${sec < 10 ? '0' : ''}${sec}`;
@@ -249,25 +315,18 @@
 
         audio.addEventListener('timeupdate', () => {
             if (audio.duration) {
-                const progressPercent = (audio.currentTime / audio.duration) * 100;
-                progressBar.value = progressPercent;
+                progressBar.value = (audio.currentTime / audio.duration) * 100;
                 currentTimeEl.innerText = formatTime(audio.currentTime);
                 totalTimeEl.innerText = formatTime(audio.duration);
             }
         });
 
         progressBar.addEventListener('input', () => {
-            if (audio.duration) {
-                const seekTime = (progressBar.value / 100) * audio.duration;
-                audio.currentTime = seekTime;
-            }
+            if (audio.duration) audio.currentTime = (progressBar.value / 100) * audio.duration;
         });
 
         audio.addEventListener('ended', () => {
-            if (!audio.loop) {
-                playBtn.innerText = "▶️";
-                statusMsg.innerText = "Song ended.";
-            }
+            if (!audio.loop) playBtn.innerText = "▶️";
         });
     </script>
 </body>
